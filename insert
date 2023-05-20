@@ -1,0 +1,61 @@
+function fetchAndInsertData() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var numRows = sheet.getLastRow();
+  var FIRST_DAY_KEYWORDS = ['Classes begin', 'First day of', 'First day of classes for', 'First day of Summer I', 'First day of classes for Summer II', 'First Day of Classes for Summer I', 'Classes Begin', 'Start of Fall Term', 'First day of classes - Summer Session 1', 'First day of classes - Summer Session 2'];
+  var LAST_DAY_KEYWORDS = ['Last Day of Classes', 'Last day of undergraduate classes', 'Last day of undergraduate classes for Summer II', 'Last day of undergraduate classes for Summer I', 'End of Spring Term', 'End of Term', 'End of Fall Term', 'Last day of undergraduate classes - Summer Session 1', 'Last day of undergraduate classes - Summer Session 2'];
+
+  for (var rowIndex = 2; rowIndex <= numRows; rowIndex++) {
+    var url = sheet.getRange(rowIndex, 9).getValue();
+    var term = sheet.getRange(rowIndex, 2).getValue();
+    var year = term.toString().substr(0, 4);
+
+    if (!url) {
+      continue;
+    }
+
+    var response = UrlFetchApp.fetch(url);
+    var htmlContent = response.getContentText();
+    var $ = Cheerio.load(htmlContent);
+
+    var rows = $('#main > div > table > tbody > tr');
+    var firstDay = '';
+    var lastDay = '';
+
+    rows.each(function (i, elem) {
+      var columns = $(elem).children('td');
+      var dateText = $(columns[0]).text().trim();
+      var eventText = $(columns[2]).text().trim();
+
+      if (containsAnyKeyword(eventText, FIRST_DAY_KEYWORDS)) {
+        if (firstDay) {
+          firstDay += ',';
+        }
+        var termIndicator = eventText.includes('Summer') ? `(${eventText.substr(-2)})` : '';
+        firstDay += `${termIndicator}${formatDate(dateText + ', ' + year)}`;
+      } else if (containsAnyKeyword(eventText, LAST_DAY_KEYWORDS)) {
+        if (lastDay) {
+          lastDay += ',';
+        }
+        var termIndicator = eventText.includes('Summer') ? `(${eventText.substr(-2)})` : '';
+        lastDay += `${termIndicator}${formatDate(dateText + ', ' + year)}`;
+      }
+    });
+
+    sheet.getRange(rowIndex, 3).setValue(firstDay);
+    sheet.getRange(rowIndex, 7).setValue(lastDay);
+  }
+}
+
+function containsAnyKeyword(text, keywords) {
+  return keywords.some(function (keyword) {
+    return text.indexOf(keyword) !== -1;
+  });
+}
+
+function formatDate(dateString) {
+  var date = new Date(dateString);
+  var month = date.getMonth() + 1;
+  var day = date.getDate();
+  var year = date.getFullYear();
+  return `${month}/${day}/${year}`;
+}
