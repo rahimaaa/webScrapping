@@ -1,0 +1,32 @@
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('Custom Functions')
+    .addItem('Write Links to Sheet', 'writeToSheet')
+    .addToUi();
+}
+
+function writeToSheet() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const base_url = "https://www.brooklyn.cuny.edu/web/about/administration/enrollment/registrar/bulletins/";
+  const semesters = ["summer", "fall", "spring"]; // Change the order of semesters
+  let current_year = 2020; // Start from 2020
+  const final_year = 2023;
+  const urlColumn = 9; // Column I
+
+  let lastRow = sheet.getRange(1, urlColumn, sheet.getLastRow(), 1).getValues().filter(String).length;
+
+  while (current_year <= final_year) {
+    for (const semester of semesters) {
+      if (current_year === final_year && semester === "summer") {
+        break;
+      }
+      const link = `${base_url}${semester}${String(current_year).slice(-2)}/calendar.php`;
+      sheet.getRange(lastRow + 1, urlColumn).setValue(link);
+      SpreadsheetApp.flush(); // Force the updates to be applied immediately
+      lastRow += 1;
+      if (semester === "fall") { // Increment the year when the semester is "fall"
+        current_year += 1;
+      }
+    }
+  }
+}
