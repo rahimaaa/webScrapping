@@ -1,0 +1,146 @@
+// Load Moment.js library
+var moment = Moment.load();
+
+// Get active sheet from the active spreadsheet
+var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+
+// Set the initial row to 2
+var row = 2;
+
+// Function to extract URLs from a specific range of the sheet
+function extractUrls(){
+    var urls = sheet.getRange("J2:J14").getValues(); // Get URLs from the specified range of the sheet
+
+    // Iterate over each URL and increment the row number after each URL is processed
+    urls.forEach(elem => { 
+      extractTdText(elem[0]);
+      row++; })
+}
+
+// Function to extract td elements' text from the specified URL
+function extractTdText(url) {
+  var response = UrlFetchApp.fetch(url);  // Fetch the content of the URL
+  var htmlContent = response.getContentText(); // Get the HTML content of the response
+
+  var $ = Cheerio.load(htmlContent); // Load the Cheerio library to manipulate the HTML content
+
+  // Define an object of months in the year
+  var months = { 
+    "January": 1,
+    "February": 2,
+    "March": 3,
+    "April": 4,
+    "May": 5,
+    "June": 6,
+    "July": 7,
+    "August": 8,
+    "September": 9,
+    "October": 10,
+    "November": 11,
+    "December": 12
+  };
+  
+  // Initialize year variable
+  var year = '';
+
+  // Extract the year from the h1 element of the HTML content
+  year = $('h1').text().trim().match(/\d{4}/)[0];
+
+  // Convert the year from a string to an integer
+  year = parseInt(year);
+
+  // Initialize an object to store extracted data
+  var obj = [];
+
+  //Store the milliseconds for the drop deadline
+  var time1;
+  //Store the milliseconds for the withdraw deadline
+  var time2;
+
+  // Loop through each td element
+  $('td').each(function(i, elem) {
+    var tdText = $(elem).text().trim(); // Get the text content of the td element
+    
+    obj.push(tdText); // Add the td element text to the object
+    
+    // Check if this is the third td element in a row
+    if((i+1)%3 == 0){
+       // Extract the month and day from the first td element text
+        var monthAndDay = obj[0].split(" ");
+        var month = months[monthAndDay[0]];
+        var day = parseInt(monthAndDay[1]);
+
+        // Format the date as MM/dd/yyyy
+        var date = returnDate(month,day,year);
+
+        // Check which keyword matches the second td element text and output the date to the appropriate column
+        if(obj[2].toLowerCase().indexOf("classes begin") > -1 || obj[2].toLowerCase().indexOf("first day of") > -1 || obj[2].toLowerCase().indexOf("start of") > -1){
+          sheet.getRange("C" + row).clearContent();
+          sheet.getRange("C" + row).setValue(date + "\n");
+        } 
+        
+        if(obj[2].indexOf("Last day to add a course") > -1 || obj[2].indexOf("Last day to add a class") > -1){
+          sheet.getRange("D" + row).clearContent();
+          sheet.getRange("D" + row).setValue(date + "\n");
+        } 
+        
+        if(obj[2].indexOf("Last day to drop a course without a grade of") > -1 || obj[2].indexOf("Last day to drop a course with a \"WD\" grade") > -1 || obj[2].indexOf("Grade of WD is assigned") > -1 ||obj[2]. indexOf("First day to withdraw from a course with a grade of \"W\"") > -1 || obj[2].indexOf("Last day to add a course") > -1){
+          sheet.getRange("E" + row).clearContent();
+          sheet.getRange("E" + row).setValue(date + "\n");
+          var date1 = new Date(getYearOfDate(date),getMonthOfDate(date),getDayOfDate(date));
+          time1 = date1.getTime();
+        } 
+        
+        if(obj[2].indexOf("Last day to withdraw") > -1 || obj[2].indexOf("	Last day to withdraw from a course with a grade of \"W\"") > -1 || obj[2].indexOf("drop a course with a grade of W") > -1){
+          sheet.getRange("F" + row).clearContent();
+          sheet.getRange("F" + row).setValue(date + "\n");
+          var date2 = new Date(getYearOfDate(date),getMonthOfDate(date),getDayOfDate(date));
+          time2 = date2.getTime();
+
+        } 
+        
+        if((obj[2].indexOf("End of") > -1  && obj[2].toLowerCase().indexOf("term") > -1) || obj[2].indexOf("Last day of undergraduate classes") > -1){
+          sheet.getRange("G" + row).clearContent();
+          sheet.getRange("G" + row).setValue(date + "\n");
+        } 
+        if(obj[2].toLowerCase().indexOf("grade submission") > -1 || obj[2].toLowerCase().indexOf("final grades") > -1 || obj[2].toLowerCase().indexOf("grade entry deadline") > -1 || obj[2].indexOf("Deadline for faculty to submit grades") > -1 || obj[2].indexOf("Last day to submit spring grade rosters") > -1){
+          sheet.getRange("H" + row).clearContent();
+          sheet.getRange("H" + row).setValue(date + "\n");
+        }
+        //calculate the days between drop deadline and withdraw deadline
+        var diffInDays = Math.floor((time2 - time1)/ (1000 * 60 * 60 * 24)+0.5);
+        sheet.getRange("I" + row).clearContent();
+        sheet.getRange("I" + row).setValue(diffInDays + "\n");
+      obj = [];
+    }
+  });
+  
+  
+}
+
+// Formats the date as MM/dd/yyyy
+function returnDate(month, day, year){
+  var date = new Date(year, month-1, day);
+   return Utilities.formatDate(date, Session.getScriptTimeZone(), "MM/dd/yyyy");
+}
+
+//Get the value of the year
+function getYearOfDate(date) {
+  var dateCopy = new Date(date);
+  var yearValue = dateCopy.getFullYear();
+  return yearValue;
+}
+
+//Get the value of the month
+function getMonthOfDate(date) {
+  var dateCopy = new Date(date);
+  var monthValue = dateCopy.getMonth();
+  return monthValue;
+}
+
+//Get the value of the day
+function getDayOfDate(date) {
+  var dateCopy = new Date(date);
+  var dayValue = dateCopy.getDate();
+  return dayValue;
+}
